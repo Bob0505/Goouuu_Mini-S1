@@ -1,5 +1,6 @@
 
 //#include "C:\WorkSpace\Code\Goouuu_Mini-S1\LED.h"
+#include "basic.h"
 #include "LED.h"
 
 const uint8_t PinArray[] = {LED_I, LED_R, LED_G, LED_B};

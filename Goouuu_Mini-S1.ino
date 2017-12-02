@@ -13,16 +13,17 @@
 #include <DHT.h>
 #include <DHT_U.h>
 //#include "C:\WorkSpace\Code\Goouuu_Mini-S1\LED.h"
+#include "basic.h"
 #include "LED.h"
 
 #define SERIAL_BAUD 230400
 
-#define DHTPIN  5		// Pin which is connected to the DHT sensor.
 #define DHTTYPE	DHT22	// DHT 22 (AM2302)
-DHT_Unified dht(DHTPIN, DHTTYPE);
+DHT_Unified DHT_A(DHT_PIN_A, DHTTYPE);
+DHT_Unified DHT_B(DHT_PIN_B, DHTTYPE);
 uint32_t delayMS;
 
-void DHT22_setup()
+void DHT22_setup(DHT_Unified dht)
 {
 	// Initialize device.
 	dht.begin();
@@ -56,12 +57,12 @@ void DHT22_setup()
 	Serial.println("------------------------------------");
 }
 
-void DHT22_loop()
+void DHT22_loop(DHT_Unified dht)
 {
 	static bool LED_STATUS;
 	// Delay between measurements.
-	delay(delayMS);
-	digitalWrite(LED_G, LED_STATUS);	// turn the LED on (HIGH is the voltage level)
+	//delay(delayMS);
+	digitalWrite(LED_I, LED_STATUS);	// turn the LED on (HIGH is the voltage level)
 	LED_STATUS = !LED_STATUS;
 
 	// Get temperature event and print its value.
@@ -71,7 +72,8 @@ void DHT22_loop()
 		Serial.println("Error reading temperature!");
 	}
 	else {
-		Serial.print("Temperature: ");
+		//Serial.print("Temperature: ");
+		Serial.print("Temp: ");
 		Serial.print(event.temperature);
 		Serial.println(" *C");
 	}
@@ -81,7 +83,8 @@ void DHT22_loop()
 		Serial.println("Error reading humidity!");
 	}
 	else {
-		Serial.print("Humidity: ");
+		//Serial.print("Humidity: ");
+		Serial.print("Humi: ");
 		Serial.print(event.relative_humidity);
 		Serial.println("%");
 	}
@@ -93,22 +96,29 @@ void setup()
 	// initialize digital pin LED_BUILTIN as an output.
 	//InitGPOs();
 	//ClearLED();
-	pinMode(LED_G, OUTPUT);
-
+	pinMode(LED_I, OUTPUT);
 	Serial.begin(SERIAL_BAUD); Serial.println("\nHello World");
 	Serial.println("[GPIO High Low]");
 
 	//GPIO_HL();
-	DHT22_setup();
+	DHT22_setup(DHT_A);
+	DHT22_setup(DHT_B);
 }
 
 // the loop function runs over and over again forever
 void loop()
 {
+	bool IN_STATUS;
+
 	//need to check
 	//Serial.println("[GPIO PWM_Mode]");
 	//PWM_Mode();
 
-	DHT22_loop();
+	Serial.println("[A]");
+	DHT22_loop(DHT_A);
+	Serial.println("[B]");
+	DHT22_loop(DHT_B);
+	delay(delayMS);
+
 	Serial.println("--- ---");
 }

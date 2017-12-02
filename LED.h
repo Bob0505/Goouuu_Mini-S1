@@ -1,11 +1,6 @@
 #ifndef _LED_H_
 #define _LED_H_
 
-#define LED_I	4
-#define LED_R	12
-#define LED_G	13
-#define LED_B	14
-
 #include <Arduino.h>
 #include <stdint.h>
 
