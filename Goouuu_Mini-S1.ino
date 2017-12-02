@@ -7,57 +7,83 @@
  * github: https://github.com/Bob0505/
 */
 
+// https://github.com/adafruit/Adafruit_Sensor
+#include <Adafruit_Sensor.h>
+// https://github.com/adafruit/DHT-sensor-library
+#include <DHT.h>
+#include <DHT_U.h>
+//#include "C:\WorkSpace\Code\Goouuu_Mini-S1\LED.h"
+#include "LED.h"
+
 #define SERIAL_BAUD 230400
 
-#define LED_I	4
-#define LED_R	12
-#define LED_G	13
-#define LED_B	14
+#define DHTPIN  5		// Pin which is connected to the DHT sensor.
+#define DHTTYPE	DHT22	// DHT 22 (AM2302)
+DHT_Unified dht(DHTPIN, DHTTYPE);
+uint32_t delayMS;
 
-uint8_t PinArray[] = {LED_I, LED_R, LED_G, LED_B};
-
-void ClearLED()
+void DHT22_setup()
 {
-	for(uint8_t idx=0;idx < sizeof(PinArray)/sizeof(uint8_t);idx++)
-	{
-		digitalWrite(PinArray[idx], HIGH);
+	// Initialize device.
+	dht.begin();
+	Serial.println("DHT22 Unified Sensor Example");
+	// Print temperature sensor details.
+	sensor_t sensor;
+	dht.temperature().getSensor(&sensor);
+	Serial.println("------------------------------------");
+	Serial.println("Temperature");
+	Serial.print  ("Sensor:       "); Serial.println(sensor.name);
+	Serial.print  ("Driver Ver:   "); Serial.println(sensor.version);
+	Serial.print  ("Unique ID:    "); Serial.println(sensor.sensor_id);
+	Serial.print  ("Max Value:    "); Serial.print(sensor.max_value); Serial.println(" *C");
+	Serial.print  ("Min Value:    "); Serial.print(sensor.min_value); Serial.println(" *C");
+	Serial.print  ("Resolution:   "); Serial.print(sensor.resolution); Serial.println(" *C");  
+	Serial.println("------------------------------------");
+	// Print humidity sensor details.
+	dht.humidity().getSensor(&sensor);
+	Serial.println("------------------------------------");
+	Serial.println("Humidity");
+	Serial.print  ("Sensor:       "); Serial.println(sensor.name);
+	Serial.print  ("Driver Ver:   "); Serial.println(sensor.version);
+	Serial.print  ("Unique ID:    "); Serial.println(sensor.sensor_id);
+	Serial.print  ("Max Value:    "); Serial.print(sensor.max_value); Serial.println("%");
+	Serial.print  ("Min Value:    "); Serial.print(sensor.min_value); Serial.println("%");
+	Serial.print  ("Resolution:   "); Serial.print(sensor.resolution); Serial.println("%");  
+	Serial.println("------------------------------------");
+	// Set delay between sensor readings based on sensor details.
+	delayMS = sensor.min_delay / 1000;
+	Serial.print  ("delayMS:   "); Serial.println(delayMS);  
+	Serial.println("------------------------------------");
+}
+
+void DHT22_loop()
+{
+	static bool LED_STATUS;
+	// Delay between measurements.
+	delay(delayMS);
+	digitalWrite(LED_G, LED_STATUS);	// turn the LED on (HIGH is the voltage level)
+	LED_STATUS = !LED_STATUS;
+
+	// Get temperature event and print its value.
+	sensors_event_t event;
+	dht.temperature().getEvent(&event);
+	if (isnan(event.temperature)) {
+		Serial.println("Error reading temperature!");
 	}
-}
-
-void tick(uint8_t Pin)
-{
-  //toggle state
-  bool state = digitalRead(Pin); // get the current state of GPIO1 pin
-
-  digitalWrite(Pin, LOW);     // set pin to the opposite state
-  delay(500);
-  digitalWrite(Pin, HIGH);
-  delay(100);
-}
-
-void GPIO_HL()
-{
-	ClearLED();
-	delay(500);
-
-	for(uint8_t idx=0;idx < sizeof(PinArray)/sizeof(uint8_t);idx++)
-	{
-		tick(PinArray[idx]);
+	else {
+		Serial.print("Temperature: ");
+		Serial.print(event.temperature);
+		Serial.println(" *C");
 	}
-}
-
-void PWM_Mode()
-{
-	const uint8_t LED_PWM_MAX = 70, gap = 10, PWM_MAX = 255;
-	uint8_t val;
-
-	for (val=0; val<gap*(LED_PWM_MAX/gap); val+=gap)
-	{
-		Serial.print(val);  Serial.print(" => ");  Serial.println(PWM_MAX-val);
-		analogWrite (LED_R, PWM_MAX-val);
-		analogWrite (LED_G, PWM_MAX-val);
-		analogWrite (LED_B, PWM_MAX-val);
-		delay (500);
+	// Get humidity event and print its value.
+	dht.humidity().getEvent(&event);
+	if (isnan(event.relative_humidity)) {
+		Serial.println("Error reading humidity!");
+	}
+	else {
+		Serial.print("Humidity: ");
+		Serial.print(event.relative_humidity);
+		Serial.println("%");
 	}
 }
 
@@ -65,24 +91,24 @@ void PWM_Mode()
 void setup()
 {
 	// initialize digital pin LED_BUILTIN as an output.
-	for(uint8_t idx=0;idx < sizeof(PinArray)/sizeof(uint8_t);idx++)
-	{
-		pinMode(PinArray[idx], OUTPUT);
-	}
-	ClearLED();
+	//InitGPOs();
+	//ClearLED();
+	pinMode(LED_G, OUTPUT);
 
 	Serial.begin(SERIAL_BAUD); Serial.println("\nHello World");
+	Serial.println("[GPIO High Low]");
+
+	//GPIO_HL();
+	DHT22_setup();
 }
 
 // the loop function runs over and over again forever
 void loop()
 {
-	Serial.println("[GPIO High Low]");
-	GPIO_HL();
-
 	//need to check
 	//Serial.println("[GPIO PWM_Mode]");
 	//PWM_Mode();
 
+	DHT22_loop();
 	Serial.println("--- ---");
 }
