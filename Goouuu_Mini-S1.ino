@@ -7,15 +7,18 @@
  * github: https://github.com/Bob0505/
 */
 
+#include "basic.h"
+#include "LED.h"
+
 // https://github.com/adafruit/Adafruit_Sensor
 #include <Adafruit_Sensor.h>
 // https://github.com/adafruit/DHT-sensor-library
 #include <DHT.h>
 #include <DHT_U.h>
 //#include "C:\WorkSpace\Code\Goouuu_Mini-S1\LED.h"
-#include "basic.h"
-#include "LED.h"
 #include <ESP8266WiFi.h>
+//https://github.com/JChristensen/Timer
+#include <Timer.h>
 
 #define SERIAL_BAUD 230400
 
@@ -32,6 +35,9 @@ String GET = "GET /update?key=5BL7QOK501MKJTW8";
 DHT_Unified DHT_A(DHT_PIN_A, DHTTYPE);
 DHT_Unified DHT_B(DHT_PIN_B, DHTTYPE);
 uint32_t delayMS;
+
+//Timer Task_1s;
+Timer Task_30s;
 
 void DHT22_setup(DHT_Unified dht)
 {
@@ -147,6 +153,34 @@ void Wifi_loop(float temp_A, float humi_A, float temp_B, float humi_B)
     }
 }
 
+void UpdateTemp()
+{
+	float temp_A, humi_A, temp_B, humi_B;
+	//need to check
+	//Serial.println("[GPIO PWM_Mode]");
+	//PWM_Mode();
+
+	Serial.println("[A]");
+	DHT22_loop(DHT_A, &temp_A, &humi_A);
+	Serial.print("  Temp: ");	Serial.print(temp_A);	Serial.println(" *C");
+	Serial.print("  Humi: ");	Serial.print(humi_A);	Serial.println(" %");
+
+	Serial.println("[B]");
+	DHT22_loop(DHT_B, &temp_B, &humi_B);
+	Serial.print("  Temp: ");	Serial.print(temp_B);	Serial.println(" *C");
+	Serial.print("  Humi: ");	Serial.print(humi_B);	Serial.println(" %");
+
+	Serial.println("Upload data to thingspeak...");
+	Wifi_loop(temp_A, humi_A, temp_B, humi_B);
+
+	Serial.println("--- ---");	
+}
+
+void task_30s()
+{
+	UpdateTemp();
+}
+
 // the setup function runs once when you press reset or power the board
 void setup()
 {
@@ -162,30 +196,13 @@ void setup()
 	DHT22_setup(DHT_B);
 
 	Wifi_setup();
+
+	Task_30s.every(30*1000, task_30s);
 }
 
 // the loop function runs over and over again forever
 void loop()
 {
-	bool IN_STATUS;
-	float temp_A, humi_A, temp_B, humi_B;
+	Task_30s.update();
 
-	//need to check
-	//Serial.println("[GPIO PWM_Mode]");
-	//PWM_Mode();
-
-	Serial.println("[A]");
-	DHT22_loop(DHT_A, &temp_A, &humi_A);
-	Serial.print("  Temp: ");	Serial.print(temp_A);	Serial.println(" *C");
-	Serial.print("  Humi: ");	Serial.print(humi_A);	Serial.println(" %");
-
-	Serial.println("[B]");
-	DHT22_loop(DHT_B, &temp_B, &humi_B);
-	Serial.print("  Temp: ");	Serial.print(temp_B);	Serial.println(" *C");
-	Serial.print("  Humi: ");	Serial.print(humi_B);	Serial.println(" %");
-
-	Wifi_loop(temp_A, humi_A, temp_B, humi_B);
-
-	delay(delayMS);
-	Serial.println("--- ---");
 }
