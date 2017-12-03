@@ -1,6 +1,13 @@
 #ifndef _BASIC_H_
 #define _BASIC_H_
 
+#if ARDUINO >= 100
+ #include "Arduino.h"
+ //#include "Print.h"
+#else
+ #include "WProgram.h"
+#endif
+
 enum GPIOs
 {
 	GPIO00		= 0,	//			SPI_CS2
@@ -23,5 +30,16 @@ enum GPIOs
 
 #define DHT_PIN_A	GPIO00
 #define DHT_PIN_B	GPIO05
+
+typedef enum {
+	b_RET_ERROR_UNKNOWN = 0,	/* 0 something shouldn't happened */
+	b_RET_NOT_SUPPORT,			/* 2 */
+	b_RET_DHT22_TEMP_ERROR,		/* 3 */
+	b_RET_DHT22_HUMI_ERROR,		/* 4 */
+	b_RET_WIFI_CNT_ERROR,		/* 5 */
+} RET_STATUS_bits;
+
+typedef uint16_t RET_STATUS;
+#define RET_SUCCESS	0x0000
 
 #endif	/*_LED_H_*/

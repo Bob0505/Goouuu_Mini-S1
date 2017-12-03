@@ -36,8 +36,11 @@ DHT_Unified DHT_A(DHT_PIN_A, DHTTYPE);
 DHT_Unified DHT_B(DHT_PIN_B, DHTTYPE);
 uint32_t delayMS;
 
-//Timer Task_1s;
-Timer Task_30s;
+Timer Task_250ms;
+Timer Task_5s;
+Timer Task_60s;
+
+static RET_STATUS G_Status;
 
 void DHT22_setup(DHT_Unified dht)
 {
@@ -93,19 +96,19 @@ void Wifi_setup()
     Serial.println( WiFi.localIP() );
 }
 
-void DHT22_loop(DHT_Unified dht, float* temp, float* humi)
+RET_STATUS DHT22_loop(DHT_Unified dht, float* temp, float* humi)
 {
-	static bool LED_STATUS;
+	RET_STATUS Status = RET_SUCCESS;
 	// Delay between measurements.
 	//delay(delayMS);
-	digitalWrite(LED_I, LED_STATUS);	// turn the LED on (HIGH is the voltage level)
-	LED_STATUS = !LED_STATUS;
 
 	// Get temperature event and print its value.
 	sensors_event_t event;
 	dht.temperature().getEvent(&event);
 	if (isnan(event.temperature)) {
 		Serial.println("Error reading temperature!");
+		//SET_BIT(Status, b_RET_DHT22_TEMP_ERROR);
+		Status|= (1 << b_RET_DHT22_TEMP_ERROR);
 	}
 	else {
 		//Serial.print("Temperature: ");
@@ -118,6 +121,8 @@ void DHT22_loop(DHT_Unified dht, float* temp, float* humi)
 	dht.humidity().getEvent(&event);
 	if (isnan(event.relative_humidity)) {
 		Serial.println("Error reading humidity!");
+		//SET_BIT(Status, b_RET_DHT22_HUMI_ERROR);
+		Status|= (1 << b_RET_DHT22_HUMI_ERROR);
 	}
 	else {
 		//Serial.print("Humidity: ");
@@ -126,59 +131,103 @@ void DHT22_loop(DHT_Unified dht, float* temp, float* humi)
 		//Serial.println("%");
 		*humi = event.relative_humidity;
 	}
+
+	return Status;
 }
 
-void Wifi_loop(float temp_A, float humi_A, float temp_B, float humi_B)
+RET_STATUS Wifi_loop(float temp_A, float humi_A, float temp_B, float humi_B)
 {
-    // setting ESP8266 as Client
-    WiFiClient client;
-    if( !client.connect( HOST, PORT ) )
-    {
-        Serial.println( "connection failed" );
-        return;
-    }
-    else
-    {
-        String getStr = GET + "&field1=" + String(temp_A) + 
-                              "&field2=" + String(humi_A) +
+	RET_STATUS Status = RET_SUCCESS;
+
+	// setting ESP8266 as Client
+	WiFiClient client;
+	if( !client.connect( HOST, PORT ) )
+	{
+		Serial.println( "connection failed" );
+		//SET_BIT(Status, b_RET_WIFI_HUMI_ERROR);
+		Status|= (1 << b_RET_WIFI_CNT_ERROR);
+	}
+	else
+	{
+		String getStr = GET + "&field1=" + String(temp_A) + 
+							  "&field2=" + String(humi_A) +
 							  "&field3=" + String(temp_B) + 
-                              "&field4=" + String(humi_B) +
-                              " HTTP/1.1\r\n";;
-        client.print( getStr );
-        client.print( "Host: api.thingspeak.com\n" );
-        client.print( "Connection: close\r\n\r\n" );
-        
-        delay(10);
-        client.stop();
-    }
+							  "&field4=" + String(humi_B) +
+							  " HTTP/1.1\r\n";;
+		client.print( getStr );
+		client.print( "Host: api.thingspeak.com\n" );
+		client.print( "Connection: close\r\n\r\n" );
+
+		delay(10);
+		client.stop();
+	}
+
+	return Status;
 }
 
-void UpdateTemp()
+RET_STATUS UpdateTemp()
 {
+	RET_STATUS Status = RET_SUCCESS;
+
 	float temp_A, humi_A, temp_B, humi_B;
 	//need to check
 	//Serial.println("[GPIO PWM_Mode]");
 	//PWM_Mode();
 
 	Serial.println("[A]");
-	DHT22_loop(DHT_A, &temp_A, &humi_A);
+	Status  = DHT22_loop(DHT_A, &temp_A, &humi_A);
 	Serial.print("  Temp: ");	Serial.print(temp_A);	Serial.println(" *C");
 	Serial.print("  Humi: ");	Serial.print(humi_A);	Serial.println(" %");
 
 	Serial.println("[B]");
-	DHT22_loop(DHT_B, &temp_B, &humi_B);
+	Status |= DHT22_loop(DHT_B, &temp_B, &humi_B);
 	Serial.print("  Temp: ");	Serial.print(temp_B);	Serial.println(" *C");
 	Serial.print("  Humi: ");	Serial.print(humi_B);	Serial.println(" %");
 
-	Serial.println("Upload data to thingspeak...");
-	Wifi_loop(temp_A, humi_A, temp_B, humi_B);
+	if(Status == RET_SUCCESS)
+	{
+		Serial.println("Upload data to thingspeak...");
+		Status = Wifi_loop(temp_A, humi_A, temp_B, humi_B);
+	}
 
-	Serial.println("--- ---");	
+	return Status;
 }
 
-void task_30s()
+void Update_LED()
 {
-	UpdateTemp();
+	static bool LED_STATUS;
+
+	if(G_Status == RET_SUCCESS)
+	{
+		digitalWrite(LED_I, LED_STATUS);	// turn the LED on (HIGH is the voltage level)
+		LED_STATUS = !LED_STATUS;
+	} else {
+		digitalWrite(LED_I, HIGH);
+	}
+}
+
+void task_250ms()
+{
+	Update_LED();
+}
+
+void task_5s()
+{
+	static uint8_t cnt = 0;
+
+	Serial.print("*");
+	if(cnt>=5)
+		Serial.println("");
+}
+
+void task_60s()
+{
+	Serial.println("");
+
+	G_Status = UpdateTemp();
+	Serial.print("G_Status: ");	Serial.println(G_Status);
+
+	Serial.println("--- ---");
 }
 
 // the setup function runs once when you press reset or power the board
@@ -188,21 +237,29 @@ void setup()
 	//InitGPOs();
 	//ClearLED();
 	pinMode(LED_I, OUTPUT);
+	pinMode(LED_I, HIGH);
 	Serial.begin(SERIAL_BAUD); Serial.println("\nHello World");
-	Serial.println("[GPIO High Low]");
 
+	//Serial.println("[GPIO High Low]");
 	//GPIO_HL();
+
 	DHT22_setup(DHT_A);
 	DHT22_setup(DHT_B);
 
 	Wifi_setup();
 
-	Task_30s.every(30*1000, task_30s);
+	Task_250ms.every(250, task_250ms);
+	Task_5s.every(5*1000, task_5s);
+	Task_60s.every(60*1000, task_60s);
+	
+	G_Status = RET_SUCCESS;
+	task_60s();
 }
 
 // the loop function runs over and over again forever
 void loop()
 {
-	Task_30s.update();
-
+	Task_250ms.update();
+	Task_5s.update();
+	Task_60s.update();
 }
