@@ -15,8 +15,18 @@
 //#include "C:\WorkSpace\Code\Goouuu_Mini-S1\LED.h"
 #include "basic.h"
 #include "LED.h"
+#include <ESP8266WiFi.h>
 
 #define SERIAL_BAUD 230400
+
+//*-- IoT Information
+#define SSID	"AP_Name"
+#define PASS	"AP_Password"
+#define HOST	"api.thingspeak.com" // ThingSpeak IP Address: 184.106.153.149
+#define PORT	80
+// using GET to send data
+// GET /update?key=[THINGSPEAK_KEY]&field1=[data 1]&filed2=[data 2]...;
+String GET = "GET /update?key=5BL7QOK501MKJTW8";
 
 #define DHTTYPE	DHT22	// DHT 22 (AM2302)
 DHT_Unified DHT_A(DHT_PIN_A, DHTTYPE);
@@ -57,7 +67,27 @@ void DHT22_setup(DHT_Unified dht)
 	Serial.println("------------------------------------");
 }
 
-void DHT22_loop(DHT_Unified dht)
+void Wifi_setup()
+{
+    // Connecting to a WiFi network
+    Serial.print("Connect to ");
+    Serial.println( SSID );
+    WiFi.begin( SSID, PASS );
+
+    // wait connect WiFi SSID
+    while( WiFi.status() != WL_CONNECTED )
+    {
+        delay(500);
+        Serial.print( "." );
+    }
+    Serial.println( "" );
+
+    Serial.println( "WiFi connected" );
+    Serial.println( "IP address: " );
+    Serial.println( WiFi.localIP() );
+}
+
+void DHT22_loop(DHT_Unified dht, float* temp, float* humi)
 {
 	static bool LED_STATUS;
 	// Delay between measurements.
@@ -73,9 +103,10 @@ void DHT22_loop(DHT_Unified dht)
 	}
 	else {
 		//Serial.print("Temperature: ");
-		Serial.print("Temp: ");
-		Serial.print(event.temperature);
-		Serial.println(" *C");
+		//Serial.print("Temp: ");
+		//Serial.print(event.temperature);
+		//Serial.println(" *C");
+		*temp = event.temperature;
 	}
 	// Get humidity event and print its value.
 	dht.humidity().getEvent(&event);
@@ -84,10 +115,36 @@ void DHT22_loop(DHT_Unified dht)
 	}
 	else {
 		//Serial.print("Humidity: ");
-		Serial.print("Humi: ");
-		Serial.print(event.relative_humidity);
-		Serial.println("%");
+		//Serial.print("Humi: ");
+		//Serial.print(event.relative_humidity);
+		//Serial.println("%");
+		*humi = event.relative_humidity;
 	}
+}
+
+void Wifi_loop(float temp_A, float humi_A, float temp_B, float humi_B)
+{
+    // setting ESP8266 as Client
+    WiFiClient client;
+    if( !client.connect( HOST, PORT ) )
+    {
+        Serial.println( "connection failed" );
+        return;
+    }
+    else
+    {
+        String getStr = GET + "&field1=" + String(temp_A) + 
+                              "&field2=" + String(humi_A) +
+							  "&field3=" + String(temp_B) + 
+                              "&field4=" + String(humi_B) +
+                              " HTTP/1.1\r\n";;
+        client.print( getStr );
+        client.print( "Host: api.thingspeak.com\n" );
+        client.print( "Connection: close\r\n\r\n" );
+        
+        delay(10);
+        client.stop();
+    }
 }
 
 // the setup function runs once when you press reset or power the board
@@ -103,22 +160,32 @@ void setup()
 	//GPIO_HL();
 	DHT22_setup(DHT_A);
 	DHT22_setup(DHT_B);
+
+	Wifi_setup();
 }
 
 // the loop function runs over and over again forever
 void loop()
 {
 	bool IN_STATUS;
+	float temp_A, humi_A, temp_B, humi_B;
 
 	//need to check
 	//Serial.println("[GPIO PWM_Mode]");
 	//PWM_Mode();
 
 	Serial.println("[A]");
-	DHT22_loop(DHT_A);
-	Serial.println("[B]");
-	DHT22_loop(DHT_B);
-	delay(delayMS);
+	DHT22_loop(DHT_A, &temp_A, &humi_A);
+	Serial.print("  Temp: ");	Serial.print(temp_A);	Serial.println(" *C");
+	Serial.print("  Humi: ");	Serial.print(humi_A);	Serial.println(" %");
 
+	Serial.println("[B]");
+	DHT22_loop(DHT_B, &temp_B, &humi_B);
+	Serial.print("  Temp: ");	Serial.print(temp_B);	Serial.println(" *C");
+	Serial.print("  Humi: ");	Serial.print(humi_B);	Serial.println(" %");
+
+	Wifi_loop(temp_A, humi_A, temp_B, humi_B);
+
+	delay(delayMS);
 	Serial.println("--- ---");
 }
