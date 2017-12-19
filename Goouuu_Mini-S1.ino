@@ -29,16 +29,14 @@
 #define PORT	80
 // using GET to send data
 // GET /update?key=[THINGSPEAK_KEY]&field1=[data 1]&filed2=[data 2]...;
-String GET = "GET /update?key=5BL7QOK501MKJTW8";
+String GET = "GET /update?key=Write_API_Key";
 
 #define DHTTYPE	DHT22	// DHT 22 (AM2302)
 DHT_Unified DHT_A(DHT_PIN_A, DHTTYPE);
 DHT_Unified DHT_B(DHT_PIN_B, DHTTYPE);
 uint32_t delayMS;
 
-Timer Task_250ms;
-Timer Task_5s;
-Timer Task_60s;
+Timer Tasks;
 
 static RET_STATUS G_Status;
 
@@ -135,7 +133,7 @@ RET_STATUS DHT22_loop(DHT_Unified dht, float* temp, float* humi)
 	return Status;
 }
 
-RET_STATUS Wifi_loop(float temp_A, float humi_A, float temp_B, float humi_B)
+RET_STATUS DataUpload(float temp_A, float humi_A, float temp_B, float humi_B)
 {
 	RET_STATUS Status = RET_SUCCESS;
 
@@ -154,6 +152,32 @@ RET_STATUS Wifi_loop(float temp_A, float humi_A, float temp_B, float humi_B)
 							  "&field3=" + String(temp_B) + 
 							  "&field4=" + String(humi_B) +
 							  " HTTP/1.1\r\n";;
+		client.print( getStr );
+		client.print( "Host: api.thingspeak.com\n" );
+		client.print( "Connection: close\r\n\r\n" );
+
+		delay(10);
+		client.stop();
+	}
+
+	return Status;
+}
+
+RET_STATUS StatusUpload(RET_STATUS U_Status)
+{
+	RET_STATUS Status = RET_SUCCESS;
+
+	// setting ESP8266 as Client
+	WiFiClient client;
+	if( !client.connect( HOST, PORT ) )
+	{
+		Serial.println( "connection failed" );
+		//SET_BIT(Status, b_RET_WIFI_HUMI_ERROR);
+		Status|= (1 << b_RET_WIFI_CNT_ERROR);
+	}
+	else
+	{
+		String getStr = GET + "&field5=" + String(U_Status) + " HTTP/1.1\r\n";;
 		client.print( getStr );
 		client.print( "Host: api.thingspeak.com\n" );
 		client.print( "Connection: close\r\n\r\n" );
@@ -187,7 +211,7 @@ RET_STATUS UpdateTemp()
 	if(Status == RET_SUCCESS)
 	{
 		Serial.println("Upload data to thingspeak...");
-		Status = Wifi_loop(temp_A, humi_A, temp_B, humi_B);
+		Status = DataUpload(temp_A, humi_A, temp_B, humi_B);
 	}
 
 	return Status;
@@ -216,16 +240,28 @@ void task_5s()
 	static uint8_t cnt = 0;
 
 	Serial.print("*");
-	if(cnt>=5)
+	if(++cnt%5==0)
+	{
+		Serial.print(" ");
+	}
+	else if(cnt>=20)
+	{
+		cnt = 0;
 		Serial.println("");
+	}
 }
 
-void task_60s()
+void stephen_task()
 {
 	Serial.println("");
 
 	G_Status = UpdateTemp();
+
 	Serial.print("G_Status: ");	Serial.println(G_Status);
+	if(G_Status != RET_SUCCESS)
+	{
+		StatusUpload(G_Status);
+	}
 
 	Serial.println("--- ---");
 }
@@ -233,6 +269,8 @@ void task_60s()
 // the setup function runs once when you press reset or power the board
 void setup()
 {
+	RET_STATUS Status = RET_SUCCESS;
+
 	// initialize digital pin LED_BUILTIN as an output.
 	//InitGPOs();
 	//ClearLED();
@@ -248,18 +286,18 @@ void setup()
 
 	Wifi_setup();
 
-	Task_250ms.every(250, task_250ms);
-	Task_5s.every(5*1000, task_5s);
-	Task_60s.every(60*1000, task_60s);
-	
+	Tasks.every(250, task_250ms);
+	Tasks.every(5*1000, task_5s);
+	Tasks.every(12*60*60*1000/48, stephen_task);
 	G_Status = RET_SUCCESS;
-	task_60s();
+	stephen_task();
+
+	Status = (1 << b_SYSTEM_REBOOT);
+	StatusUpload(Status);
 }
 
 // the loop function runs over and over again forever
 void loop()
 {
-	Task_250ms.update();
-	Task_5s.update();
-	Task_60s.update();
+	Tasks.update();
 }
